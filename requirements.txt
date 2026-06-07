@@ -1,3 +1,6 @@
 streamlit
+openai
+google-generativeai
+duckduckgo-search
 yfinance
 pandas
