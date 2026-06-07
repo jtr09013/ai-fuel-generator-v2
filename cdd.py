@@ -17,8 +17,11 @@ def analyst_ai(data):
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     model = genai.GenerativeModel('gemini-1.5-flash')
     news = search_web("美股與台股今日重點財經新聞")
-    response = model.generate_content(f"請分析這些數據與新聞，給出專業觀點: {data} \n 新聞參考: {news}")
-    return response.text
+    try:
+        response = model.generate_content(f"請分析這些數據與新聞，給出專業觀點: {data} \n 新聞參考: {news}")
+        return response.text
+    except Exception as e:
+        return f"分析失敗，錯誤訊息: {str(e)}"
 
 def critic_ai(analysis):
     client = OpenAI(api_key=st.secrets["DEEPSEEK_API_KEY"], base_url="https://api.deepseek.com")
