@@ -409,33 +409,55 @@ MA_20_DAY: {ma20:.2f}
             else:
                 st.error("找不到該股票數據，請確認代號與市場選擇。")
 
-# --- 在召喚軍師的邏輯中修改 ---
+# --- 軍師接入點 ---
+st.divider()
+st.subheader("🤖 軍師團決策支援")
+
+# 1. 使用 session_state 來持久化您的數據，避免重新整理時數據消失
+if "context_data" not in st.session_state:
+    st.session_state.context_data = ""
+
+context_input = st.text_area("請貼入剛剛產生的燃料包數據（以便軍師研讀）：", 
+                            value=st.session_state.context_data, height=200)
+st.session_state.context_data = context_input
+
+# 2. 召喚按鈕邏輯
 if st.button("召喚軍師團進行分析"):
-    if context_data:
+    if st.session_state.context_data:
         with st.status("軍師團研議中...", expanded=True) as status:
-            analysis_a = analyst_ai(context_data)
+            analysis_a = analyst_ai(st.session_state.context_data)
             final_verdict = critic_ai(analysis_a)
-            # 將結果存入狀態，以便後續判斷
+            
+            # 將結果存入狀態
             st.session_state.analysis_a = analysis_a
             st.session_state.final_verdict = final_verdict
-            st.session_state.show_revision = True # 開啟顯示修正按鈕的權限
+            st.session_state.show_revision = True
+            status.update(label="✅ 初步分析完成", state="complete")
+    else:
+        st.warning("請先產生並貼入數據！")
 
-# --- 顯示初步報告與決定按鈕 ---
+# 3. 顯示結果與修正決策按鈕
 if st.session_state.get("show_revision", False):
     st.markdown("### 📊 初步分析報告")
     st.write(st.session_state.analysis_a)
-    st.info(st.session_state.final_verdict)
+    st.info(f"### 🔍 軍師 B 的審查意見\n{st.session_state.final_verdict}")
     
-    # 讓主帥決定是否進行二次研議
-    if st.button("要求分析官針對質疑進行修正"):
+    # 主帥決定區：是否進行二次修正
+    if st.button("🔄 要求分析官針對質疑進行修正"):
         with st.spinner("軍師修正中..."):
             correction_prompt = f"""
             風險評估官對您的報告提出以下質疑：{st.session_state.final_verdict}
             請針對這些缺漏與邏輯盲點，補上數據並重新撰寫分析報告。
-            原始數據: {context_data}
+            原始數據: {st.session_state.context_data}
             """
+            # 進行二次修正
             new_analysis_a = analyst_ai(correction_prompt)
+            
+            # 更新顯示
+            st.markdown("---")
             st.markdown("### 🔄 修正後的最終報告")
             st.write(new_analysis_a)
             st.success("決策報告已更新。")
-            st.session_state.show_revision = False # 關閉按鈕，避免重複觸發
+            
+            # 任務完成，關閉修正選項
+            st.session_state.show_revision = False
