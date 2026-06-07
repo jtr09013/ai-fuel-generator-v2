@@ -38,25 +38,33 @@ st.caption("本系統已整合「台股個股前日收盤價 (PREV_CLOSE) 錨點
 
 # --- 核心數據抓取函式 ---
 def get_tw_index_data():
-    data = {"taiex_p": 0.0, "taiex_c": 0.0, "taiex_pct": 0.0, "taiex_v": "待計算",
-            "otc_p": 0.0, "otc_c": 0.0, "otc_pct": 0.0, "otc_v": "待確認"}
-    try:
-        taiex = yf.Ticker("^TWII").history(period="2d")
-        if not taiex.empty:
-            latest = taiex.iloc[-1]
-            data["taiex_p"] = latest['Close']
-            data["taiex_c"] = latest['Close'] - latest['Open']
-            data["taiex_pct"] = (data["taiex_c"] / latest['Open']) * 100
-            
-        otc = yf.Ticker("^TWOII").history(period="2d")
-        if not otc.empty:
-            latest = otc.iloc[-1]
-            data["otc_p"] = latest['Close']
-            data["otc_c"] = latest['Close'] - latest['Open']
-            data["otc_pct"] = (data["otc_c"] / latest['Open']) * 100
-    except:
-        pass
-    return data
+    data = {
+        "taiex_p": 0.0, 
+        "taiex_c": 0.0, 
+        "taiex_pct": 0.0, 
+        "taiex_v": "待計算",
+        "otc_p": 0.0, 
+        "otc_c": 0.0, 
+        "otc_pct": 0.0, 
+        "otc_v": "待確認"
+    }
+    try:
+        taiex = yf.Ticker("^TWII").history(period="2d")
+        if not taiex.empty:
+            latest = taiex.iloc[-1]
+            data["taiex_p"] = latest['Close']
+            data["taiex_c"] = latest['Close'] - latest['Open']
+            data["taiex_pct"] = (data["taiex_c"] / latest['Open']) * 100
+        
+        otc = yf.Ticker("^TWOII").history(period="2d")
+        if not otc.empty:
+            latest = otc.iloc[-1]
+            data["otc_p"] = latest['Close']
+            data["otc_c"] = latest['Close'] - latest['Open']
+            data["otc_pct"] = (data["otc_c"] / latest['Open']) * 100
+    except:
+        pass
+    return data
 
 def get_us_index_data():
     indices = {"DOW": "^DJI", "NAS": "^IXIC", "SPX": "^GSPC", "SOX": "^SOX"}
