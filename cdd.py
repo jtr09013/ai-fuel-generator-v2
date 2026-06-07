@@ -307,7 +307,7 @@ SHORT_INTEREST: (每兩周公布)
 LAST_REPORT: 2026-05-30
 E_MINIS&P500_NET_COMMERCIAL: -125,000口 (商業空頭)
 E_MINIS&P500_NONCOM_NET: +98,000口 (投機淨多頭)
-NOTE: 每週五公布，下期報告預計今日傍晚(6/5)或明晨更新，反映大戶最新留倉
+NOTE: 反映大戶期貨留倉動向，最新報告請AI聯網查證。
 </FUTURES_COT>
 
 <MACRO_EVENTS>
