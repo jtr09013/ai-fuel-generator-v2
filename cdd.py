@@ -15,18 +15,53 @@ def search_web(query):
 
 def analyst_ai(data):
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel('gemini-3.5-flash')
+    model = genai.GenerativeModel('gemini-3.5-flash') 
     news = search_web("美股與台股今日重點財經新聞")
-    response = model.generate_content(f"請分析這些數據與新聞，給出專業觀點: {data} \n 新聞參考: {news}")
+    
+    # 建立強化的 System Instruction
+    system_instruction = """
+你是一位頂尖的市場分析官。你的任務是基於給定的數據與新聞，輸出「客觀事實」與「主觀推測」分離的報告。
+請嚴格遵守以下輸出格式：
+
+### [已知事實]
+- 請列出關鍵數據點（標註數據來源時間）
+- 請歸納新聞中的核心事件（不帶個人評價）
+
+### [推測與邏輯鏈]
+- 若 A (數據/新聞) 則 B (推測結果)，請詳細拆解推理過程。
+- 針對不確定的趨勢，請給出具體機率預估（例如：數據顯示機率約 65%）。
+
+### [結論摘要]
+- 對台股/個股的短線影響判斷（方向：漲/跌；強度：強/中/弱）。
+- 必須基於事實，禁止使用模糊的「可能」、「或許」。一律用「數據顯示」、「根據模型推測」作為開頭。
+"""
+    
+    # 使用 system_instruction 建立 model
+    model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=system_instruction)
+    
+    response = model.generate_content(f"請針對以下數據進行深度分析: \n數據: {data} \n新聞參考: {news}")
     return response.text
 
 def critic_ai(analysis):
     client = OpenAI(api_key=st.secrets["DEEPSEEK_API_KEY"], base_url="https://api.deepseek.com")
+    
+    system_prompt = """
+你是一位嚴格的風險評估官，任務是針對分析官的報告進行邏輯審計。請針對以下五大維度逐項檢查，若無問題請標註「無異常」，若有疑慮請具體點出並說明如何修正：
+
+1. **時間滯後**：檢查報告中的 COT、融資餘額、個股法人買賣超等數據是否為最新可用數據？是否過度依賴過期資訊？
+2. **因果倒置**：檢查報告是否將股價波動的「結果」解釋為「原因」？（例如：因下跌而找的新聞藉口）
+3. **矛盾信號**：檢查報告內的解讀是否衝突？（如：油價波動與債券殖利率反映的通膨預期是否邏輯自洽？）
+4. **倖存者偏差**：檢查分析官是否只列舉利多/利空證據，而刻意忽略了反向的重要技術/籌碼指標？
+5. **歸因謬誤**：檢查個股波動是否被過度解釋為公司基本面因素，而忽略了整體市場 Beta (系統性風險) 的影響？
+
+請嚴格輸出結構化的審計報告，確保分析官能根據你的回饋進行具體的增補。
+"""
+
     response = client.chat.completions.create(
         model="deepseek-chat",
         messages=[
-            {"role": "system", "content": "你是一位專業的風險評估官，請針對分析官的報告進行嚴苛的邏輯審查，點出數據中可能存在的盲點。"},
-            {"role": "user", "content": f"分析官報告: {analysis}"}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"這是待審計的報告:\n{analysis}"}
         ]
     )
     return response.choices[0].message.content
