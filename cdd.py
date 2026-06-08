@@ -16,95 +16,87 @@ from duckduckgo_search import DDGS
 import requests
 
 # ==========================================
-# 核心功能：富果 API 行情取得
+# 核心功能：富果 API 行情取得（含備援）
 # ==========================================
+
 @st.cache_data(ttl=5)
 def get_tw_stock_realtime(ticker):
-    """使用富果 API 取得個股即時報價"""
+    """使用富果 API 取得個股即時報價，失敗時備援至 yfinance 或證交所"""
     try:
         api_key = st.secrets["FUGLE_API_KEY"]
-        # 使用新版 SDK (fugle-marketdata)
         client = RestClient(api_key=api_key)
         stock = client.stock
-
-        # 直接獲取即時報價
         quote = stock.intraday.quote(symbol=ticker)
-
         if quote and 'data' in quote:
             data = quote['data']
-            # 假設資料結構中有開盤、最高、最低、最新等欄位
-            # 根據富果文件，通常會有 price、change、changePercent 等欄位
             price = data.get('price', 0)
             change = data.get('change', 0)
             change_percent = data.get('changePercent', 0)
             volume = data.get('volume', 0)
-
-            # 計算前收盤價
             prev_close = price - change
-
-            # 格式化成交量 (單位: 股 => 張)
-            if volume > 0:
-                vol_formatted = f"{volume / 1000:.2f}萬張"
-            else:
-                vol_formatted = "0張"
-
+            vol_formatted = f"{volume/1000:.2f}萬張" if volume > 0 else "0張"
             return {"price": price, "prev_close": prev_close, "chg": change, "pct": change_percent, "vol": vol_formatted}
-
-        else:
-            st.warning(f"無法獲取 {ticker} 的即時報價，API 返回空數據")
-            return None
-
     except Exception as e:
-        st.error(f"富果 API 獲取報價失敗: {ticker}，錯誤訊息: {e}")
-        # 若富果失敗，備援至證交所 (保持原本可運作)
-        # 例如：
-        # return get_tw_stock_realtime_fallback(ticker)
-        return None
-
-@st.cache_data(ttl=5)
-def get_tw_index_data_realtime():
-    """使用富果 API 取得加權指數與櫃買指數即時報價"""
+        st.warning(f"富果個股 {ticker} 報價失敗，使用備援: {e}")
+    # 備援1: yfinance
     try:
-        api_key = st.secrets["FUGLE_API_KEY"]
-        client = RestClient(api_key=api_key)
-        stock = client.stock
+        stock = yf.Ticker(f"{ticker}.TW")
+        info = stock.fast_info
+        price = info.get('last_price', 0)
+        if price > 0:
+            prev_close = info.get('regular_market_previous_close', 0)
+            if prev_close == 0:
+                hist = stock.history(period="2d")
+                if len(hist) >= 2:
+                    prev_close = hist['Close'].iloc[-2]
+            change = price - prev_close
+            pct = (change / prev_close) * 100 if prev_close != 0 else 0
+            volume = info.get('last_volume', 0)
+            vol_fmt = f"{volume/1000:.2f}萬張" if volume > 0 else "0張"
+            return {"price": price, "prev_close": prev_close, "chg": change, "pct": pct, "vol": vol_fmt}
+    except Exception as e2:
+        st.warning(f"yfinance 個股 {ticker} 備援失敗: {e2}")
+    # 備援2: 證交所 API (原有邏輯，可選擇是否保留)
+    # 若以上都失敗則回傳 None
+    return None
 
-        # 加權指數的代號：TAIEX
-        taiex_quote = stock.intraday.quote(symbol="TAIEX")
-        # 櫃買指數的代號：TPEX
-        tpex_quote = stock.intraday.quote(symbol="TPEX")
-
-        data = {
-            "taiex_p": 0.0, "taiex_c": 0.0, "taiex_pct": 0.0, "taiex_v": "查無資料",
-            "otc_p": 0.0, "otc_c": 0.0, "otc_pct": 0.0, "otc_v": "查無資料"
-        }
-
-        if taiex_quote and 'data' in taiex_quote:
-            taiex = taiex_quote['data']
-            data["taiex_p"] = taiex.get('price', 0)
-            data["taiex_c"] = taiex.get('change', 0)
-            data["taiex_pct"] = taiex.get('changePercent', 0)
-            volume = taiex.get('volume', 0)
-            if volume > 0:
-                data["taiex_v"] = f"{volume / 1000000:.2f}百萬股"
-
-        if tpex_quote and 'data' in tpex_quote:
-            tpex = tpex_quote['data']
-            data["otc_p"] = tpex.get('price', 0)
-            data["otc_c"] = tpex.get('change', 0)
-            data["otc_pct"] = tpex.get('changePercent', 0)
-            volume = tpex.get('volume', 0)
-            if volume > 0:
-                data["otc_v"] = f"{volume / 1000000:.2f}百萬股"
-
-        return data
-
+@st.cache_data(ttl=10)
+def get_tw_index_data_realtime():
+    """取得大盤即時數據（因富果免費版不支援指數，直接使用 yfinance）"""
+    data = {
+        "taiex_p": 0.0, "taiex_c": 0.0, "taiex_pct": 0.0, "taiex_v": "查閱盤中",
+        "otc_p": 0.0, "otc_c": 0.0, "otc_pct": 0.0, "otc_v": "查閱盤中"
+    }
+    try:
+        # 加權指數 ^TWII
+        taiex = yf.Ticker("^TWII")
+        hist = taiex.history(period="2d")
+        if len(hist) >= 2:
+            prev_close = hist['Close'].iloc[-2]
+            # 獲取當日盤中最新價（使用1分鐘線）
+            intraday = taiex.history(period="1d", interval="1m")
+            if not intraday.empty:
+                current = intraday['Close'].iloc[-1]
+            else:
+                current = hist['Close'].iloc[-1]  # 無盤中則用昨日收盤
+            data["taiex_p"] = current
+            data["taiex_c"] = current - prev_close
+            data["taiex_pct"] = (data["taiex_c"] / prev_close) * 100
+            data["taiex_v"] = "即時(延遲)"
+        # 櫃買指數 ^TWOII
+        otc = yf.Ticker("^TWOII")
+        hist_o = otc.history(period="2d")
+        if len(hist_o) >= 2:
+            prev_close_o = hist_o['Close'].iloc[-2]
+            intraday_o = otc.history(period="1d", interval="1m")
+            current_o = intraday_o['Close'].iloc[-1] if not intraday_o.empty else hist_o['Close'].iloc[-1]
+            data["otc_p"] = current_o
+            data["otc_c"] = current_o - prev_close_o
+            data["otc_pct"] = (data["otc_c"] / prev_close_o) * 100
+            data["otc_v"] = "即時(延遲)"
     except Exception as e:
-        st.warning(f"富果 API 獲取大盤報價失敗，使用備援模式: {e}")
-        # 備援：使用原本證交所抓取方法
-        # 例如：
-        # return get_tw_index_data_realtime_fallback()
-        return data
+        st.warning(f"取得大盤即時數據失敗: {e}")
+    return data
 
 # ==========================================
 # 其他抓取函數 (Yahoo Finance, 美股, 總經)
