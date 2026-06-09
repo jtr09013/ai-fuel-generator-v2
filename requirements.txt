@@ -8,3 +8,4 @@ requests>=2.31
 anyio==4.4.0
 fugle-marketdata>=0.2.0
 FinMind
+twstock
