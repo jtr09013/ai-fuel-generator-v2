@@ -6,6 +6,6 @@ duckduckgo-search>=6.0
 google-genai>=0.2.0
 requests>=2.31
 anyio==4.4.0
-fugle-marketdata>=0.2.0
+fugle-marketdata
 FinMind
 twstock
