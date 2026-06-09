@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 os.environ["ANYIO_BACKEND"] = "asyncio"
 
 # FinMind API
-from finmind import FinMind
+from FinMind.data import DataLoader
 from google import genai
 from google.genai import types
 from openai import OpenAI
